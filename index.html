@@ -1,0 +1,196 @@
+<!DOCTYPE html>
+<html lang="tr">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Kademeli Arıza Lokasyon Tespit</title>
+    <link rel="manifest" href="./manifest.json">
+    <meta name="theme-color" content="#2c3e50">
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
+    <style>
+        body { font-family: 'Segoe UI', sans-serif; background-color: #f0f2f5; padding: 10px; display: flex; justify-content: center; }
+        .container { background-color: white; padding: 20px; border-radius: 12px; box-shadow: 0 4px 15px rgba(0,0,0,0.1); max-width: 550px; width: 100%; }
+        h2 { text-align: center; color: #1a73e8; margin-bottom: 15px; font-size: 20px; }
+        .input-group { background: #f8f9fa; padding: 15px; border-radius: 8px; margin-bottom: 15px; border: 1px solid #dee2e6; }
+        label { font-weight: bold; font-size: 14px; color: #495057; display: block; margin-top: 8px; }
+        select, input { width: 100%; padding: 10px; margin-top: 5px; border: 1px solid #ced4da; border-radius: 6px; box-sizing: border-box; font-size: 15px; }
+        
+        .section-row { display: flex; gap: 10px; margin-top: 5px; align-items: flex-end; }
+        .section-row div:first-child { flex: 2; }
+        .section-row div:last-child { flex: 1; }
+        
+        .btn-group { display: flex; flex-direction: column; gap: 8px; margin-top: 15px; }
+        button { width: 100%; padding: 12px; border: none; border-radius: 6px; font-size: 15px; font-weight: bold; cursor: pointer; }
+        .btn-calc { background-color: #1a73e8; color: white; }
+        .btn-pdf { background-color: #f39c12; color: white; display: none; }
+        .btn-wa { background-color: #25D366; color: white; display: none; }
+        
+        .result-box { margin-top: 15px; padding: 15px; background-color: #e7f3ff; border-left: 5px solid #1a73e8; border-radius: 4px; display: none; }
+        .info-text { font-size: 12px; color: #6c757d; margin-top: 10px; line-height: 1.4; }
+    </style>
+</head>
+<body>
+
+<div class="container">
+    <h2>⚡ Kademeli Arıza Lokasyon Tespit</h2>
+    
+    <div class="input-group">
+        <label>Hat/Fider Adı:</label>
+        <input type="text" id="lineName" placeholder="Örn: Sanayi-1 Fideri">
+        
+        <div style="display: flex; gap: 10px;">
+            <div style="flex:1">
+                <label>Gerilim (kV):</label>
+                <input type="number" id="voltage" value="31.5">
+            </div>
+            <div style="flex:1">
+                <label>Arıza Akımı (A):</label>
+                <input type="number" id="faultCurrent" placeholder="Amper">
+            </div>
+        </div>
+
+        <label>Arıza Tipi:</label>
+        <select id="faultType">
+            <option value="3P">3 Faz Kısa Devre</option>
+            <option value="2P">2 Faz Kısa Devre</option>
+            <option value="1P">Faz - Toprak</option>
+        </select>
+    </div>
+
+    <div class="input-group">
+        <strong style="font-size: 14px; color: #1a73e8;">Hat Kesitleri (Kaynaktan İtibaren)</strong>
+        <div id="sectionsContainer">
+            </div>
+        <button type="button" onclick="addSection()" style="background:none; color:#1a73e8; text-decoration:underline; font-size:13px; width:auto; padding:5px;">+ Yeni Kesit Ekle (Max 5)</button>
+    </div>
+
+    <div class="btn-group">
+        <button class="btn-calc" onclick="calculateFault()">MESAFEYİ HESAPLA</button>
+        <div id="result" class="result-box"></div>
+        <button id="pdfBtn" class="btn-pdf" onclick="generatePDF()">📄 PDF RAPORU AL</button>
+        <button id="waBtn" class="btn-wa" onclick="sendWhatsApp()">🟢 WHATSAPP İLE GÖNDER</button>
+    </div>
+
+    <p class="info-text">* Program, girdiğiniz kesitlerin uzunluklarını sırasıyla kontrol eder. Arıza mesafesi girdiğiniz toplam uzunluktan fazlaysa, son kesitten sonraki mesafeyi verir.</p>
+</div>
+
+<script>
+    let sectionCount = 0;
+    const conductors = [
+        { name: "Swallow (Havai)", z: 1.433 }, { name: "Raven (Havai)", z: 0.659 },
+        { name: "Pigeon (Havai)", z: 0.496 }, { name: "Hawk (Havai)", z: 0.355 },
+        { name: "95 mm² AL XLPE", z: 0.345 }, { name: "150 mm² AL XLPE", z: 0.238 },
+        { name: "240 mm² AL XLPE", z: 0.166 }, { name: "400 mm² AL XLPE", z: 0.126 },
+        { name: "95 mm² CU XLPE", z: 0.232 }, { name: "150 mm² CU XLPE", z: 0.172 },
+        { name: "240 mm² CU XLPE", z: 0.133 }
+    ];
+
+    function addSection() {
+        if (sectionCount >= 5) return;
+        sectionCount++;
+        const container = document.getElementById('sectionsContainer');
+        const row = document.createElement('div');
+        row.className = 'section-row';
+        row.id = `section_row_${sectionCount}`;
+        
+        let options = conductors.map(c => `<option value="${c.z}">${c.name}</option>`).join('');
+        
+        row.innerHTML = `
+            <div>
+                <label>${sectionCount}. Kesit İletkeni:</label>
+                <select id="cond_${sectionCount}">${options}</select>
+            </div>
+            <div>
+                <label>Uzunluk (km):</label>
+                <input type="number" id="len_${sectionCount}" step="0.1" placeholder="km">
+            </div>
+        `;
+        container.appendChild(row);
+    }
+
+    // İlk kesiti otomatik ekle
+    addSection();
+
+    let reportData = "";
+
+    function calculateFault() {
+        const v = parseFloat(document.getElementById('voltage').value);
+        const amp = parseFloat(document.getElementById('faultCurrent').value);
+        const type = document.getElementById('faultType').value;
+        
+        if (!amp) { alert("Arıza akımını giriniz!"); return; }
+
+        // 1. Toplam Hedef Empedansı Hesapla
+        let zTarget = 0;
+        if (type === "3P") zTarget = (v * 1000 / 1.732) / amp;
+        else if (type === "2P") zTarget = (v * 1000) / (2 * amp);
+        else zTarget = ((v * 1000 / 1.732) / amp) * 0.6;
+
+        let remainingZ = zTarget;
+        let totalDist = 0;
+        let faultLocationInfo = "";
+        let details = "";
+
+        // 2. Kesitleri Sırayla Tara
+        for (let i = 1; i <= sectionCount; i++) {
+            let unitZ = parseFloat(document.getElementById(`cond_${i}`).value);
+            let sectionLen = parseFloat(document.getElementById(`len_${i}`).value) || 0;
+            let condName = document.getElementById(`cond_${i}`).options[document.getElementById(`cond_${i}`).selectedIndex].text;
+            
+            let sectionMaxZ = unitZ * sectionLen;
+
+            if (remainingZ > sectionMaxZ && sectionLen > 0) {
+                // Arıza bu kesitte değil, daha ileride
+                remainingZ -= sectionMaxZ;
+                totalDist += sectionLen;
+                details += `${i}. Kesit (${condName}): ${sectionLen} km geçildi.\n`;
+            } else {
+                // Arıza bu kesitin içinde!
+                let distInThisSection = remainingZ / unitZ;
+                totalDist += distInThisSection;
+                faultLocationInfo = `Arıza ${i}. Kesit (${condName}) içerisinde, bu kesitin ${distInThisSection.toFixed(2)}. kilometresinde.`;
+                details += `${i}. Kesit (${condName}): Arıza bu kesitte (${distInThisSection.toFixed(2)} km).\n`;
+                break;
+            }
+        }
+
+        const resultDiv = document.getElementById('result');
+        resultDiv.style.display = "block";
+        resultDiv.innerHTML = `<strong>Toplam Mesafe: ${totalDist.toFixed(2)} km</strong><br><small>${faultLocationInfo}</small>`;
+        
+        document.getElementById('pdfBtn').style.display = "block";
+        document.getElementById('waBtn').style.display = "block";
+
+        reportData = `HAT: ${document.getElementById('lineName').value || 'Adsız'}\nARIZA TİPİ: ${type}\nAKIM: ${amp} A\nTOPLAM MESAFE: ${totalDist.toFixed(2)} km\n\nDETAYLAR:\n${details}`;
+    }
+
+    function generatePDF() {
+        const { jsPDF } = window.jspdf;
+        const doc = new jsPDF();
+        doc.text("KADEMELİ ARIZA LOKASYON RAPORU", 20, 20);
+        doc.setFontSize(11);
+        doc.text(reportData.split('\n'), 20, 40);
+        doc.save("Ariza_Detayli_Rapor.pdf");
+    }
+
+    function sendWhatsApp() {
+        const msg = encodeURIComponent("🚨 *ARIZA MÜDAHALE BİLGİSİ* 🚨\n\n" + reportData);
+        window.open(`https://wa.me/?text=${msg}`, '_blank');
+    }
+</script>
+<script>
+    // Service Worker Kaydı
+    if ('serviceWorker' in navigator) {
+        window.addEventListener('load', () => {
+            navigator.serviceWorker.register('./sw.js')
+                .then(registration => {
+                    console.log('ServiceWorker başarıyla kaydedildi:', registration.scope);
+                })
+                .catch(error => {
+                    console.log('ServiceWorker kaydı başarısız:', error);
+                });
+        });
+    }
+</script>
+</body>
+</html>
