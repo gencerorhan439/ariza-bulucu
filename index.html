@@ -3,184 +3,330 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Arıza GIS & Fider Kütüphanesi</title>
+    <title>Arıza Pro - GIS & Analiz</title>
     
     <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
     <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/togeojson/0.16.0/togeojson.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf-autotable/3.5.25/jspdf.plugin.autotable.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
 
     <style>
-        :root { --primary: #1a73e8; --secondary: #34495e; --bg: #f0f2f5; }
-        body { font-family: 'Segoe UI', sans-serif; margin: 0; background: var(--bg); padding: 10px; display: flex; flex-direction: column; align-items: center; }
-        .card { background: white; padding: 15px; border-radius: 12px; box-shadow: 0 4px 10px rgba(0,0,0,0.1); max-width: 600px; width: 100%; margin-bottom: 15px; box-sizing: border-box; }
-        h2, h3 { margin-top: 0; color: var(--primary); text-align: center; font-size: 18px; }
+        :root { --primary: #1a73e8; --secondary: #34495e; --success: #25D366; --excel: #1D6F42; }
+        body { font-family: 'Segoe UI', sans-serif; background: #f0f2f5; margin: 0; padding: 10px; display: flex; flex-direction: column; align-items: center; }
+        .card { background: white; padding: 15px; border-radius: 12px; box-shadow: 0 4px 10px rgba(0,0,0,0.1); max-width: 650px; width: 100%; margin-bottom: 15px; box-sizing: border-box; }
+        h2 { margin: 0 0 10px 0; color: var(--primary); text-align: center; font-size: 18px; border-bottom: 2px solid #eee; padding-bottom: 5px; }
         
-        .lib-section { border: 2px dashed #ccc; padding: 10px; border-radius: 8px; background: #fafafa; }
-        select, input, button { width: 100%; padding: 12px; margin-top: 8px; border-radius: 8px; border: 1px solid #ddd; font-size: 14px; box-sizing: border-box; }
+        .input-group { background: #f8f9fa; padding: 12px; border-radius: 8px; margin-bottom: 10px; border: 1px solid #ddd; }
+        label { font-weight: bold; font-size: 11px; color: var(--secondary); display: block; margin-top: 5px; }
+        input, select, button { width: 100%; padding: 10px; margin-top: 5px; border-radius: 6px; border: 1px solid #ccc; font-size: 14px; box-sizing: border-box; }
         
-        button { background: var(--primary); color: white; border: none; font-weight: bold; cursor: pointer; }
-        .btn-add { background: #34a853; margin-top: 5px; }
-        .btn-delete { background: #ea4335; font-size: 11px; padding: 5px; width: auto; margin-top: 5px; }
+        .row { display: flex; gap: 8px; }
+        .row > div { flex: 1; }
         
-        #map { height: 350px; width: 100%; border-radius: 12px; margin-top: 10px; z-index: 1; }
-        .result-panel { background: #e7f3ff; padding: 15px; border-radius: 8px; border-left: 5px solid var(--primary); display: none; margin-top: 10px; }
+        button { border: none; font-weight: bold; cursor: pointer; color: white; transition: 0.2s; }
+        .btn-calc { background: var(--primary); }
+        .btn-wa { background: var(--success); }
+        .btn-pdf { background: var(--secondary); }
+        .btn-excel { background: var(--excel); }
+        .btn-add { background: #6c757d; font-size: 12px; padding: 5px; }
+
+        #map { height: 300px; width: 100%; border-radius: 10px; margin-top: 10px; z-index: 1; }
+        .history-item { background: #fff; border: 1px solid #ddd; padding: 10px; border-radius: 8px; margin-top: 8px; font-size: 13px; position: relative; border-left: 5px solid var(--primary); }
+        .delete-btn { position: absolute; right: 8px; top: 8px; color: #e74c3c; cursor: pointer; }
     </style>
 </head>
 <body>
 
 <div class="card">
-    <h2>📁 Fider Kütüphanesi</h2>
-    <div class="lib-section">
-        <label style="font-size: 12px; font-weight: bold;">Yeni KML Ekle:</label>
-        <input type="text" id="fiderName" placeholder="Fider İsmi (Örn: Organize-1)">
-        <input type="file" id="kmlInput" accept=".kml">
-        <button class="btn-add" onclick="saveToLibrary()">KÜTÜPHANEYE KAYDET</button>
+    <h2>📁 Fider Kütüphanesi & GIS</h2>
+    <div class="row">
+        <input type="text" id="libName" placeholder="Fider Adı">
+        <input type="file" id="kmlInput" accept=".kml" style="font-size: 10px;">
     </div>
-
-    <div style="margin-top: 15px;">
-        <label style="font-size: 12px; font-weight: bold;">Kayıtlı Fider Seç:</label>
-        <select id="fiderSelect" onchange="loadFiderFromLibrary()">
-            <option value="">-- Fider Seçiniz --</option>
-        </select>
-        <div id="deleteZone"></div>
-    </div>
+    <button class="btn-add" onclick="saveKml()">KÜTÜPHANEYE KAYDET</button>
+    <select id="fiderSelect" onchange="loadFider()">
+        <option value="">-- Kayıtlı Fider Seç --</option>
+    </select>
 </div>
 
 <div class="card">
-    <h3>⚡ Arıza Analizi</h3>
-    <div style="display: flex; gap: 8px;">
-        <div style="flex:1"><label style="font-size:11px;">Akım (A)</label><input type="number" id="ampInput" placeholder="Amper"></div>
-        <div style="flex:1"><label style="font-size:11px;">İletken Ω/km</label>
-            <select id="zInput">
-                <option value="0.355">Hawk (0.355)</option>
-                <option value="0.496">Pigeon (0.496)</option>
-                <option value="1.433">Swallow (1.433)</option>
-            </select>
+    <h2>⚡ Arıza Mesafe Hesabı</h2>
+    <div class="input-group">
+        <div class="row">
+            <div><label>Gerilim (kV):</label><input type="number" id="voltage" value="31.5"></div>
+            <div><label>Akım (A):</label><input type="number" id="amp" placeholder="Amper"></div>
+        </div>
+        <label>Arıza Tipi:</label>
+        <select id="faultType">
+            <option value="3 Faz K.D.">3 Faz Kısa Devre</option>
+            <option value="2 Faz K.D.">2 Faz Kısa Devre</option>
+            <option value="Faz-Toprak">Faz - Toprak</option>
+        </select>
+    </div>
+
+    <div class="input-group">
+        <strong>Hat Kesitleri (Kademeli)</strong>
+        <div id="sections"></div>
+        <button type="button" class="btn-add" onclick="addSection()">+ Kesit Ekle</button>
+    </div>
+
+    <button class="btn-calc" onclick="processFault()">HESAPLA VE NOKTAYI BUL</button>
+    <div id="map"></div>
+</div>
+
+<div class="card">
+    <h2>📄 İşlemler & Geçmiş</h2>
+    <div id="resultBox" style="display:none; padding:10px; background:#e7f3ff; margin-bottom:10px; border-radius:5px;">
+        <strong>Sonuç: <span id="resDist"></span> km</strong>
+        <div class="row" style="margin-top:10px;">
+            <button class="btn-wa" onclick="sendWA()">WhatsApp</button>
+            <button class="btn-pdf" onclick="exportPDF()">PDF Rapor</button>
         </div>
     </div>
-    <button onclick="calculateFaultLocation()">HARİTADA NOKTAYI BUL</button>
 
-    <div id="map"></div>
-
-    <div id="resultPanel" class="result-panel">
-        <strong>Mesafe: <span id="distRes"></span> km</strong><br>
-        <span id="coordRes" style="font-size: 12px; color: #555;"></span>
-        <button onclick="goNav()" style="background:#4285F4; margin-top:10px;">Navigasyonu Başlat</button>
+    <div class="input-group">
+    <label>Fider Filtrele:</label>
+    <select id="filterFider" onchange="uiHistory()">
+        <option value="all">-- Tüm Kayıtlar --</option>
+    </select>
+    
+    <div class="row">
+        <div><label>Başlangıç Tarihi:</label><input type="date" id="filterStart" onchange="uiHistory()"></div>
+        <div><label>Bitiş Tarihi:</label><input type="date" id="filterEnd" onchange="uiHistory()"></div>
     </div>
+    <button class="btn-excel" onclick="exportExcel()" style="margin-top:10px;">📊 FİLTRELİ LİSTEYİ EXCEL AKTAR</button>
+</div>
+<div id="historyList"></div>
 </div>
 
 <script>
-    let map = L.map('map').setView([39.0, 35.0], 6);
+    let map = L.map('map').setView([39, 35], 5);
     L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png').addTo(map);
 
-    let currentRouteCoords = [];
-    let routeLayer = null;
-    let markerLayer = null;
-    let library = JSON.parse(localStorage.getItem('fiderLibrary')) || {};
+    let secCount = 0;
+    let history = JSON.parse(localStorage.getItem('ariza_pro_hist')) || [];
+    let library = JSON.parse(localStorage.getItem('ariza_pro_lib')) || {};
+    let activeCoords = [];
+    let routeLayer, markerLayer;
 
-    // Kütüphaneyi Başlat
-    updateFiderList();
+    const conductors = [
+        // Havai Hat İletkenleri
+        { name: "Swallow (Havai)", z: 1.433 },
+        { name: "Raven (Havai)", z: 0.659 },
+        { name: "Pigeon (Havai)", z: 0.496 },
+        { name: "Hawk (Havai)", z: 0.355 },
+        // Alüminyum Yer Altı Kabloları (AL XLPE)
+        { name: "95 mm² AL XLPE", z: 0.345 },
+        { name: "150 mm² AL XLPE", z: 0.238 },
+        { name: "240 mm² AL XLPE", z: 0.166 },
+        { name: "400 mm² AL XLPE", z: 0.126 },
+        // Bakır Yer Altı Kabloları (CU XLPE)
+        { name: "95 mm² CU XLPE", z: 0.232 },
+        { name: "150 mm² CU XLPE", z: 0.172 },
+        { name: "240 mm² CU XLPE", z: 0.133 }
+    ];
 
-    function saveToLibrary() {
-        const name = document.getElementById('fiderName').value;
+    function addSection() {
+        if(secCount >= 7) return; // Limit 5'ten 7'ye çıkarıldı
+        secCount++;
+        const div = document.createElement('div');
+        div.className = 'row'; div.style.marginTop = "5px";
+        let opts = conductors.map(c => `<option value="${c.z}">${c.name}</option>`).join('');
+        div.innerHTML = `<select id="z_${secCount}">${opts}</select><input type="number" id="l_${secCount}" placeholder="km">`;
+        document.getElementById('sections').appendChild(div);
+    }
+
+    function saveKml() {
+        const name = document.getElementById('libName').value;
         const file = document.getElementById('kmlInput').files[0];
-
-        if (!name || !file) return alert("İsim girin ve dosya seçin!");
-
-        const reader = new FileReader();
-        reader.onload = function(e) {
-            const parser = new DOMParser();
-            const kml = parser.parseFromString(e.target.result, "text/xml");
-            const converted = toGeoJSON.kml(kml);
-            const coords = converted.features[0].geometry.coordinates.map(c => [c[1], c[0]]);
-
-            library[name] = coords;
-            localStorage.setItem('fiderLibrary', JSON.stringify(library));
-            updateFiderList();
-            alert(name + " kütüphaneye eklendi.");
+        if(!name || !file) return alert("İsim ve dosya seçin!");
+        const r = new FileReader();
+        r.onload = (e) => {
+            const kml = new DOMParser().parseFromString(e.target.result, "text/xml");
+            const geo = toGeoJSON.kml(kml);
+            library[name] = geo.features[0].geometry.coordinates.map(c => [c[1], c[0]]);
+            localStorage.setItem('ariza_pro_lib', JSON.stringify(library));
+            uiLib();
         };
-        reader.readAsText(file);
+        r.readAsText(file);
     }
-
-    function updateFiderList() {
-        const select = document.getElementById('fiderSelect');
-        select.innerHTML = '<option value="">-- Fider Seçiniz --</option>';
-        for (let name in library) {
-            let opt = document.createElement('option');
-            opt.value = name;
-            opt.innerText = name;
-            select.appendChild(opt);
+    
+    function updateFilterDropdown() {
+        const sel = document.getElementById('filterFider');
+        // Mevcut seçenekleri temizle (ilk seçenek hariç)
+        sel.innerHTML = '<option value="all">-- Tüm Kayıtlar --</option>';
+        for(let n in library) {
+            sel.innerHTML += `<option value="${n}">${n}</option>`;
         }
     }
 
-    function loadFiderFromLibrary() {
-        const name = document.getElementById('fiderSelect').value;
-        if (!name) return;
+    function uiLib() {
+        const sel = document.getElementById('fiderSelect');
+        sel.innerHTML = '<option value="">-- Kayıtlı Fider Seç --</option>';
+        for(let n in library) sel.innerHTML += `<option value="${n}">${n}</option>`;
+    }
 
-        currentRouteCoords = library[name];
-        if (routeLayer) map.removeLayer(routeLayer);
-        
-        routeLayer = L.polyline(currentRouteCoords, {color: 'blue', weight: 4}).addTo(map);
+    function loadFider() {
+        const n = document.getElementById('fiderSelect').value;
+        if(!n) return;
+        activeCoords = library[n];
+        if(routeLayer) map.removeLayer(routeLayer);
+        routeLayer = L.polyline(activeCoords, {color: 'blue', weight: 4}).addTo(map);
         map.fitBounds(routeLayer.getBounds());
-        
-        document.getElementById('deleteZone').innerHTML = `<button class="btn-delete" onclick="deleteFider('${name}')">Bu Fideri Sil</button>`;
     }
 
-    function deleteFider(name) {
-        if(confirm(name + " silinsin mi?")) {
-            delete library[name];
-            localStorage.setItem('fiderLibrary', JSON.stringify(library));
-            updateFiderList();
-            if (routeLayer) map.removeLayer(routeLayer);
-            document.getElementById('deleteZone').innerHTML = '';
+    function processFault() {
+        const v = parseFloat(document.getElementById('voltage').value);
+        const amp = parseFloat(document.getElementById('amp').value);
+        const type = document.getElementById('faultType').value;
+        if(!amp) return alert("Akım girin!");
+
+        let zTarget = (type.includes("3 Faz")) ? (v * 1000 / 1.732) / amp :
+                      (type.includes("2 Faz")) ? (v * 1000) / (2 * amp) :
+                      ((v * 1000 / 1.732) / amp) * 0.6;
+
+        let totalDist = 0;
+        let tableLog = [];
+        for(let i=1; i<=secCount; i++) {
+            let uz = parseFloat(document.getElementById(`z_${i}`).value);
+            let ul = parseFloat(document.getElementById(`l_${i}`).value) || 0;
+            let uzMax = uz * ul;
+            if(zTarget > uzMax && ul > 0) { totalDist += ul; zTarget -= uzMax; tableLog.push([i, ul, ul]); }
+            else if(zTarget > 0) { let d = zTarget/uz; totalDist += d; zTarget = 0; tableLog.push([i, ul, d.toFixed(2)]); }
         }
-    }
 
-    function calculateFaultLocation() {
-        const amp = parseFloat(document.getElementById('ampInput').value);
-        const zUnit = parseFloat(document.getElementById('zInput').value);
-        
-        if (!amp || currentRouteCoords.length === 0) return alert("Hata: Verileri kontrol edin!");
-
-        const targetDistKm = (31500 / 1.732 / amp) / zUnit;
-        const targetMeters = targetDistKm * 1000;
-
-        let travelled = 0;
-        let foundCoord = null;
-
-        for (let i = 0; i < currentRouteCoords.length - 1; i++) {
-            let p1 = L.latLng(currentRouteCoords[i]);
-            let p2 = L.latLng(currentRouteCoords[i+1]);
-            let segmentDist = p1.distanceTo(p2);
-
-            if (travelled + segmentDist >= targetMeters) {
-                let ratio = (targetMeters - travelled) / segmentDist;
-                foundCoord = [
-                    p1.lat + (p2.lat - p1.lat) * ratio,
-                    p1.lng + (p2.lng - p1.lng) * ratio
-                ];
-                break;
+        let found = null;
+        if(activeCoords.length > 0) {
+            let trav = 0, targetM = totalDist * 1000;
+            found = activeCoords[0];
+            for(let i=0; i<activeCoords.length-1; i++){
+                let p1 = L.latLng(activeCoords[i]), p2 = L.latLng(activeCoords[i+1]);
+                let d = p1.distanceTo(p2);
+                if(trav + d >= targetM){
+                    let r = (targetM - trav) / d;
+                    found = [p1.lat + (p2.lat-p1.lat)*r, p1.lng + (p2.lng-p1.lng)*r]; 
+                    break;
+                }
+                trav += d;
             }
-            travelled += segmentDist;
+            if(markerLayer) map.removeLayer(markerLayer);
+            markerLayer = L.marker(found).addTo(map).bindPopup(`Arıza: ${dFix} km`).openPopup();
+            map.setView(found, 14);
         }
 
-        if (!foundCoord) foundCoord = currentRouteCoords[currentRouteCoords.length - 1];
+        const distFixed = totalDist.toFixed(2);
+        document.getElementById('resDist').innerText = distFixed;
+        document.getElementById('resultBox').style.display = "block";
 
-        if (markerLayer) map.removeLayer(markerLayer);
-        markerLayer = L.marker(foundCoord).addTo(map).bindPopup("Arıza Noktası").openPopup();
-        map.setView(foundCoord, 15);
-
-        document.getElementById('resultPanel').style.display = "block";
-        document.getElementById('distRes').innerText = targetDistKm.toFixed(2);
-        document.getElementById('coordRes').innerText = `Konum: ${foundCoord[0].toFixed(6)}, ${foundCoord[1].toFixed(6)}`;
-        window.targetPoint = foundCoord;
-    }
-
-    function goNav() {
-        if(window.targetPoint) {
-            window.open(`https://www.google.com/maps?q=${window.targetPoint[0]},${window.targetPoint[1]}`);
+        // GIS İşaretleme
+        if(activeCoords.length > 0) {
+            let trav = 0, targetM = totalDist * 1000, found = activeCoords[0];
+            for(let i=0; i<activeCoords.length-1; i++){
+                let p1 = L.latLng(activeCoords[i]), p2 = L.latLng(activeCoords[i+1]);
+                let d = p1.distanceTo(p2);
+                if(trav + d >= targetM){
+                    let r = (targetM - trav) / d;
+                    found = [p1.lat + (p2.lat-p1.lat)*r, p1.lng + (p2.lng-p1.lng)*r]; break;
+                }
+                trav += d;
+            }
+            if(markerLayer) map.removeLayer(markerLayer);
+            markerLayer = L.marker(found).addTo(map).bindPopup("Arıza Noktası").openPopup();
+            map.setView(found, 14);
+            window.lastPoint = found;
         }
+
+        history.unshift({ 
+            fider: fName, 
+            dist: dFix, 
+            amp, 
+            type, 
+            date: new Date().toISOString(), 
+            table: tableLog,
+            coords: found // Koordinatları buraya kaydettik
+        });
+        localStorage.setItem('ariza_v5_hist', JSON.stringify(history));
+        uiHistory();
     }
+
+    function uiHistory() {
+        const selectedFider = document.getElementById('filterFider').value;
+        const startDate = document.getElementById('filterStart').value;
+        const endDate = document.getElementById('filterEnd').value;
+        
+        const list = document.getElementById('historyList');
+        
+        const filtered = history.filter(h => {
+            const hDate = h.date.split('T')[0]; // ISO tarihinden sadece YYYY-MM-DD kısmını al
+            
+            const fiderMatch = (selectedFider === "all" || h.fider === selectedFider);
+            const startMatch = (!startDate || hDate >= startDate);
+            const endMatch = (!endDate || hDate <= endDate);
+            
+            return fiderMatch && startMatch && endMatch;
+        });
+
+        list.innerHTML = filtered.map((h, i) => `
+            <div class="history-item">
+                <span class="delete-btn" onclick="delHist(${i})">✕</span>
+                <strong>${h.fider}</strong> | <span style="color:var(--primary)">${h.dist} km</span> | ${h.amp}A<br>
+                <small>📅 ${new Date(h.date).toLocaleString('tr-TR')} | 🛠 ${h.type}</small>
+            </div>
+        `).join('');
+
+        // Excel çıktısı alırken bu filtrelenmiş listeyi kullanabilmek için global değişken
+        window.filteredDataForExcel = filtered;
+    }
+
+    function sendWA() {
+        const h = history[0];
+        let locMsg = "";
+        
+        // Eğer koordinat varsa Google Maps linki oluştur
+        if(h.coords) {
+            const lat = h.coords[0].toFixed(6);
+            const lng = h.coords[1].toFixed(6);
+            locMsg = `%0A📍 *Konum (Navigasyon):* https://www.google.com/maps?q=${lat},${lng}`;
+        } else {
+            locMsg = `%0A📍 *Konum:* Koordinat verisi bulunamadı (KML yüklenmemiş).`;
+        }
+
+        const msg = `⚡ *ARIZA TAHMİN RAPORU*%0A---------------------------%0A📌 *Fider:* ${h.fider}%0A📏 *Mesafe:* ${h.dist} km%0A📉 *Akım:* ${h.amp} A%0A🛠 *Tip:* ${h.type}%0A📅 *Tarih:* ${new Date(h.date).toLocaleString('tr-TR')}${locMsg}`;
+        
+        window.open(`https://wa.me/?text=${msg}`);
+    }
+
+    function exportPDF() {
+        const { jsPDF } = window.jspdf; const doc = new jsPDF();
+        const h = history[0];
+        doc.text("ARIZA ANALIZ RAPORU", 14, 15);
+        doc.autoTable({ startY: 25, body: [["Fider", h.fider], ["Mesafe", h.dist+" km"], ["Akim", h.amp+" A"], ["Tip", h.type]] });
+        doc.text("KESIT DETAYLARI", 14, doc.lastAutoTable.finalY + 10);
+        doc.autoTable({ startY: doc.lastAutoTable.finalY + 15, head: [['No', 'Planlanan(km)', 'Hesaplanan(km)']], body: h.table });
+        doc.save("Ariza_Raporu.pdf");
+    }
+
+    function exportExcel() {
+        const dataToExport = window.filteredDataForExcel || history;
+        if (dataToExport.length === 0) return alert("Aktarılacak kayıt bulunamadı!");
+        
+        const ws = XLSX.utils.json_to_sheet(dataToExport.map(h => ({
+            "Tarih": new Date(h.date).toLocaleString('tr-TR'),
+            "Fider Adı": h.fider,
+            "Mesafe (km)": h.dist,
+            "Arıza Akımı (A)": h.amp,
+            "Arıza Tipi": h.type
+        })));
+        const wb = XLSX.utils.book_new();
+        XLSX.utils.book_append_sheet(wb, ws, "Filtreli_Ariza_Raporu");
+        XLSX.writeFile(wb, "Ariza_Arsivi.xlsx");
+    }
+
+    function delHist(i) { history.splice(i,1); localStorage.setItem('ariza_pro_hist', JSON.stringify(history)); uiHistory(); }
+
+    addSection(); uiLib(); uiHistory();
 </script>
 </body>
 </html>
