@@ -3,193 +3,183 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Kademeli Arıza Lokasyon Tespit</title>
-    <link rel="manifest" href="./manifest.json">
-    <meta name="theme-color" content="#2c3e50">
-    <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
+    <title>Arıza GIS & Fider Kütüphanesi</title>
+    
+    <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
+    <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/togeojson/0.16.0/togeojson.js"></script>
+
     <style>
-        body { font-family: 'Segoe UI', sans-serif; background-color: #f0f2f5; padding: 10px; display: flex; justify-content: center; }
-        .container { background-color: white; padding: 20px; border-radius: 12px; box-shadow: 0 4px 15px rgba(0,0,0,0.1); max-width: 550px; width: 100%; }
-        h2 { text-align: center; color: #1a73e8; margin-bottom: 15px; font-size: 20px; }
-        .input-group { background: #f8f9fa; padding: 15px; border-radius: 8px; margin-bottom: 15px; border: 1px solid #dee2e6; }
-        label { font-weight: bold; font-size: 14px; color: #495057; display: block; margin-top: 8px; }
-        select, input { width: 100%; padding: 10px; margin-top: 5px; border: 1px solid #ced4da; border-radius: 6px; box-sizing: border-box; font-size: 15px; }
+        :root { --primary: #1a73e8; --secondary: #34495e; --bg: #f0f2f5; }
+        body { font-family: 'Segoe UI', sans-serif; margin: 0; background: var(--bg); padding: 10px; display: flex; flex-direction: column; align-items: center; }
+        .card { background: white; padding: 15px; border-radius: 12px; box-shadow: 0 4px 10px rgba(0,0,0,0.1); max-width: 600px; width: 100%; margin-bottom: 15px; box-sizing: border-box; }
+        h2, h3 { margin-top: 0; color: var(--primary); text-align: center; font-size: 18px; }
         
-        .section-row { display: flex; gap: 10px; margin-top: 5px; align-items: flex-end; }
-        .section-row div:first-child { flex: 2; }
-        .section-row div:last-child { flex: 1; }
+        .lib-section { border: 2px dashed #ccc; padding: 10px; border-radius: 8px; background: #fafafa; }
+        select, input, button { width: 100%; padding: 12px; margin-top: 8px; border-radius: 8px; border: 1px solid #ddd; font-size: 14px; box-sizing: border-box; }
         
-        .btn-group { display: flex; flex-direction: column; gap: 8px; margin-top: 15px; }
-        button { width: 100%; padding: 12px; border: none; border-radius: 6px; font-size: 15px; font-weight: bold; cursor: pointer; }
-        .btn-calc { background-color: #1a73e8; color: white; }
-        .btn-pdf { background-color: #f39c12; color: white; display: none; }
-        .btn-wa { background-color: #25D366; color: white; display: none; }
+        button { background: var(--primary); color: white; border: none; font-weight: bold; cursor: pointer; }
+        .btn-add { background: #34a853; margin-top: 5px; }
+        .btn-delete { background: #ea4335; font-size: 11px; padding: 5px; width: auto; margin-top: 5px; }
         
-        .result-box { margin-top: 15px; padding: 15px; background-color: #e7f3ff; border-left: 5px solid #1a73e8; border-radius: 4px; display: none; }
-        .info-text { font-size: 12px; color: #6c757d; margin-top: 10px; line-height: 1.4; }
+        #map { height: 350px; width: 100%; border-radius: 12px; margin-top: 10px; z-index: 1; }
+        .result-panel { background: #e7f3ff; padding: 15px; border-radius: 8px; border-left: 5px solid var(--primary); display: none; margin-top: 10px; }
     </style>
 </head>
 <body>
 
-<div class="container">
-    <h2>⚡ Kademeli Arıza Lokasyon Tespit</h2>
-    
-    <div class="input-group">
-        <label>Hat/Fider Adı:</label>
-        <input type="text" id="lineName" placeholder="Örn: Sanayi-1 Fideri">
-        
-        <div style="display: flex; gap: 10px;">
-            <div style="flex:1">
-                <label>Gerilim (kV):</label>
-                <input type="number" id="voltage" value="31.5">
-            </div>
-            <div style="flex:1">
-                <label>Arıza Akımı (A):</label>
-                <input type="number" id="faultCurrent" placeholder="Amper">
-            </div>
-        </div>
+<div class="card">
+    <h2>📁 Fider Kütüphanesi</h2>
+    <div class="lib-section">
+        <label style="font-size: 12px; font-weight: bold;">Yeni KML Ekle:</label>
+        <input type="text" id="fiderName" placeholder="Fider İsmi (Örn: Organize-1)">
+        <input type="file" id="kmlInput" accept=".kml">
+        <button class="btn-add" onclick="saveToLibrary()">KÜTÜPHANEYE KAYDET</button>
+    </div>
 
-        <label>Arıza Tipi:</label>
-        <select id="faultType">
-            <option value="3P">3 Faz Kısa Devre</option>
-            <option value="2P">2 Faz Kısa Devre</option>
-            <option value="1P">Faz - Toprak</option>
+    <div style="margin-top: 15px;">
+        <label style="font-size: 12px; font-weight: bold;">Kayıtlı Fider Seç:</label>
+        <select id="fiderSelect" onchange="loadFiderFromLibrary()">
+            <option value="">-- Fider Seçiniz --</option>
         </select>
+        <div id="deleteZone"></div>
     </div>
+</div>
 
-    <div class="input-group">
-        <strong style="font-size: 14px; color: #1a73e8;">Hat Kesitleri (Kaynaktan İtibaren)</strong>
-        <div id="sectionsContainer">
-            </div>
-        <button type="button" onclick="addSection()" style="background:none; color:#1a73e8; text-decoration:underline; font-size:13px; width:auto; padding:5px;">+ Yeni Kesit Ekle (Max 5)</button>
+<div class="card">
+    <h3>⚡ Arıza Analizi</h3>
+    <div style="display: flex; gap: 8px;">
+        <div style="flex:1"><label style="font-size:11px;">Akım (A)</label><input type="number" id="ampInput" placeholder="Amper"></div>
+        <div style="flex:1"><label style="font-size:11px;">İletken Ω/km</label>
+            <select id="zInput">
+                <option value="0.355">Hawk (0.355)</option>
+                <option value="0.496">Pigeon (0.496)</option>
+                <option value="1.433">Swallow (1.433)</option>
+            </select>
+        </div>
     </div>
+    <button onclick="calculateFaultLocation()">HARİTADA NOKTAYI BUL</button>
 
-    <div class="btn-group">
-        <button class="btn-calc" onclick="calculateFault()">MESAFEYİ HESAPLA</button>
-        <div id="result" class="result-box"></div>
-        <button id="pdfBtn" class="btn-pdf" onclick="generatePDF()">📄 PDF RAPORU AL</button>
-        <button id="waBtn" class="btn-wa" onclick="sendWhatsApp()">🟢 WHATSAPP İLE GÖNDER</button>
+    <div id="map"></div>
+
+    <div id="resultPanel" class="result-panel">
+        <strong>Mesafe: <span id="distRes"></span> km</strong><br>
+        <span id="coordRes" style="font-size: 12px; color: #555;"></span>
+        <button onclick="goNav()" style="background:#4285F4; margin-top:10px;">Navigasyonu Başlat</button>
     </div>
-
-    <p class="info-text">* Program, girdiğiniz kesitlerin uzunluklarını sırasıyla kontrol eder. Arıza mesafesi girdiğiniz toplam uzunluktan fazlaysa, son kesitten sonraki mesafeyi verir.</p>
 </div>
 
 <script>
-    let sectionCount = 0;
-    const conductors = [
-        { name: "Swallow (Havai)", z: 1.433 }, { name: "Raven (Havai)", z: 0.659 },
-        { name: "Pigeon (Havai)", z: 0.496 }, { name: "Hawk (Havai)", z: 0.355 },
-        { name: "95 mm² AL XLPE", z: 0.345 }, { name: "150 mm² AL XLPE", z: 0.238 },
-        { name: "240 mm² AL XLPE", z: 0.166 }, { name: "400 mm² AL XLPE", z: 0.126 },
-        { name: "95 mm² CU XLPE", z: 0.232 }, { name: "150 mm² CU XLPE", z: 0.172 },
-        { name: "240 mm² CU XLPE", z: 0.133 }
-    ];
+    let map = L.map('map').setView([39.0, 35.0], 6);
+    L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png').addTo(map);
 
-    function addSection() {
-        if (sectionCount >= 5) return;
-        sectionCount++;
-        const container = document.getElementById('sectionsContainer');
-        const row = document.createElement('div');
-        row.className = 'section-row';
-        row.id = `section_row_${sectionCount}`;
-        
-        let options = conductors.map(c => `<option value="${c.z}">${c.name}</option>`).join('');
-        
-        row.innerHTML = `
-            <div>
-                <label>${sectionCount}. Kesit İletkeni:</label>
-                <select id="cond_${sectionCount}">${options}</select>
-            </div>
-            <div>
-                <label>Uzunluk (km):</label>
-                <input type="number" id="len_${sectionCount}" step="0.1" placeholder="km">
-            </div>
-        `;
-        container.appendChild(row);
+    let currentRouteCoords = [];
+    let routeLayer = null;
+    let markerLayer = null;
+    let library = JSON.parse(localStorage.getItem('fiderLibrary')) || {};
+
+    // Kütüphaneyi Başlat
+    updateFiderList();
+
+    function saveToLibrary() {
+        const name = document.getElementById('fiderName').value;
+        const file = document.getElementById('kmlInput').files[0];
+
+        if (!name || !file) return alert("İsim girin ve dosya seçin!");
+
+        const reader = new FileReader();
+        reader.onload = function(e) {
+            const parser = new DOMParser();
+            const kml = parser.parseFromString(e.target.result, "text/xml");
+            const converted = toGeoJSON.kml(kml);
+            const coords = converted.features[0].geometry.coordinates.map(c => [c[1], c[0]]);
+
+            library[name] = coords;
+            localStorage.setItem('fiderLibrary', JSON.stringify(library));
+            updateFiderList();
+            alert(name + " kütüphaneye eklendi.");
+        };
+        reader.readAsText(file);
     }
 
-    // İlk kesiti otomatik ekle
-    addSection();
+    function updateFiderList() {
+        const select = document.getElementById('fiderSelect');
+        select.innerHTML = '<option value="">-- Fider Seçiniz --</option>';
+        for (let name in library) {
+            let opt = document.createElement('option');
+            opt.value = name;
+            opt.innerText = name;
+            select.appendChild(opt);
+        }
+    }
 
-    let reportData = "";
+    function loadFiderFromLibrary() {
+        const name = document.getElementById('fiderSelect').value;
+        if (!name) return;
 
-    function calculateFault() {
-        const v = parseFloat(document.getElementById('voltage').value);
-        const amp = parseFloat(document.getElementById('faultCurrent').value);
-        const type = document.getElementById('faultType').value;
+        currentRouteCoords = library[name];
+        if (routeLayer) map.removeLayer(routeLayer);
         
-        if (!amp) { alert("Arıza akımını giriniz!"); return; }
+        routeLayer = L.polyline(currentRouteCoords, {color: 'blue', weight: 4}).addTo(map);
+        map.fitBounds(routeLayer.getBounds());
+        
+        document.getElementById('deleteZone').innerHTML = `<button class="btn-delete" onclick="deleteFider('${name}')">Bu Fideri Sil</button>`;
+    }
 
-        // 1. Toplam Hedef Empedansı Hesapla
-        let zTarget = 0;
-        if (type === "3P") zTarget = (v * 1000 / 1.732) / amp;
-        else if (type === "2P") zTarget = (v * 1000) / (2 * amp);
-        else zTarget = ((v * 1000 / 1.732) / amp) * 0.6;
+    function deleteFider(name) {
+        if(confirm(name + " silinsin mi?")) {
+            delete library[name];
+            localStorage.setItem('fiderLibrary', JSON.stringify(library));
+            updateFiderList();
+            if (routeLayer) map.removeLayer(routeLayer);
+            document.getElementById('deleteZone').innerHTML = '';
+        }
+    }
 
-        let remainingZ = zTarget;
-        let totalDist = 0;
-        let faultLocationInfo = "";
-        let details = "";
+    function calculateFaultLocation() {
+        const amp = parseFloat(document.getElementById('ampInput').value);
+        const zUnit = parseFloat(document.getElementById('zInput').value);
+        
+        if (!amp || currentRouteCoords.length === 0) return alert("Hata: Verileri kontrol edin!");
 
-        // 2. Kesitleri Sırayla Tara
-        for (let i = 1; i <= sectionCount; i++) {
-            let unitZ = parseFloat(document.getElementById(`cond_${i}`).value);
-            let sectionLen = parseFloat(document.getElementById(`len_${i}`).value) || 0;
-            let condName = document.getElementById(`cond_${i}`).options[document.getElementById(`cond_${i}`).selectedIndex].text;
-            
-            let sectionMaxZ = unitZ * sectionLen;
+        const targetDistKm = (31500 / 1.732 / amp) / zUnit;
+        const targetMeters = targetDistKm * 1000;
 
-            if (remainingZ > sectionMaxZ && sectionLen > 0) {
-                // Arıza bu kesitte değil, daha ileride
-                remainingZ -= sectionMaxZ;
-                totalDist += sectionLen;
-                details += `${i}. Kesit (${condName}): ${sectionLen} km geçildi.\n`;
-            } else {
-                // Arıza bu kesitin içinde!
-                let distInThisSection = remainingZ / unitZ;
-                totalDist += distInThisSection;
-                faultLocationInfo = `Arıza ${i}. Kesit (${condName}) içerisinde, bu kesitin ${distInThisSection.toFixed(2)}. kilometresinde.`;
-                details += `${i}. Kesit (${condName}): Arıza bu kesitte (${distInThisSection.toFixed(2)} km).\n`;
+        let travelled = 0;
+        let foundCoord = null;
+
+        for (let i = 0; i < currentRouteCoords.length - 1; i++) {
+            let p1 = L.latLng(currentRouteCoords[i]);
+            let p2 = L.latLng(currentRouteCoords[i+1]);
+            let segmentDist = p1.distanceTo(p2);
+
+            if (travelled + segmentDist >= targetMeters) {
+                let ratio = (targetMeters - travelled) / segmentDist;
+                foundCoord = [
+                    p1.lat + (p2.lat - p1.lat) * ratio,
+                    p1.lng + (p2.lng - p1.lng) * ratio
+                ];
                 break;
             }
+            travelled += segmentDist;
         }
 
-        const resultDiv = document.getElementById('result');
-        resultDiv.style.display = "block";
-        resultDiv.innerHTML = `<strong>Toplam Mesafe: ${totalDist.toFixed(2)} km</strong><br><small>${faultLocationInfo}</small>`;
-        
-        document.getElementById('pdfBtn').style.display = "block";
-        document.getElementById('waBtn').style.display = "block";
+        if (!foundCoord) foundCoord = currentRouteCoords[currentRouteCoords.length - 1];
 
-        reportData = `HAT: ${document.getElementById('lineName').value || 'Adsız'}\nARIZA TİPİ: ${type}\nAKIM: ${amp} A\nTOPLAM MESAFE: ${totalDist.toFixed(2)} km\n\nDETAYLAR:\n${details}`;
+        if (markerLayer) map.removeLayer(markerLayer);
+        markerLayer = L.marker(foundCoord).addTo(map).bindPopup("Arıza Noktası").openPopup();
+        map.setView(foundCoord, 15);
+
+        document.getElementById('resultPanel').style.display = "block";
+        document.getElementById('distRes').innerText = targetDistKm.toFixed(2);
+        document.getElementById('coordRes').innerText = `Konum: ${foundCoord[0].toFixed(6)}, ${foundCoord[1].toFixed(6)}`;
+        window.targetPoint = foundCoord;
     }
 
-    function generatePDF() {
-        const { jsPDF } = window.jspdf;
-        const doc = new jsPDF();
-        doc.text("KADEMELİ ARIZA LOKASYON RAPORU", 20, 20);
-        doc.setFontSize(11);
-        doc.text(reportData.split('\n'), 20, 40);
-        doc.save("Ariza_Detayli_Rapor.pdf");
-    }
-
-    function sendWhatsApp() {
-        const msg = encodeURIComponent("🚨 *ARIZA MÜDAHALE BİLGİSİ* 🚨\n\n" + reportData);
-        window.open(`https://wa.me/?text=${msg}`, '_blank');
-    }
-</script>
-<script>
-    // Service Worker Kaydı
-    if ('serviceWorker' in navigator) {
-        window.addEventListener('load', () => {
-            navigator.serviceWorker.register('./sw.js')
-                .then(registration => {
-                    console.log('ServiceWorker başarıyla kaydedildi:', registration.scope);
-                })
-                .catch(error => {
-                    console.log('ServiceWorker kaydı başarısız:', error);
-                });
-        });
+    function goNav() {
+        if(window.targetPoint) {
+            window.open(`https://www.google.com/maps?q=${window.targetPoint[0]},${window.targetPoint[1]}`);
+        }
     }
 </script>
 </body>
